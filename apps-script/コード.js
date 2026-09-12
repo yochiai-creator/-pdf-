@@ -55,6 +55,8 @@ var COL = { insp:5, kk:6, zu:9, go:12, spec:13, ship:33, info:40, dest:43 };
 var LAST_SOURCE_KEY   = 'ARM_LAST_SOURCE_SIGNATURE';
 var LAST_NOTIFY_KEY   = 'ARM_LAST_NOTIFY_DATE';
 
+var SNAPSHOT_FILE_NAME = 'arm_pdf_snapshot.json'; // 前回生成時点の内容（変更点の赤字判定用）
+
 
 /** 手動実行用エントリポイント。見つかったファイルで無条件に生成する。 */
 function generateArmPDF(){
@@ -139,6 +141,10 @@ function generateArmPDF_core_(src){
                   dest:strv_(dest[i][0]), is13:(kkv.indexOf('13')===0) });
     }
     if(rows.length===0){ Logger.log('該当データ0件のためPDFは作成しません'); return false; }
+
+    // 前回生成時からの変更行を検出（赤字表示用）。図番＋号機で同一出荷物とみなす。
+    markChanges_(rows, loadSnapshot_());
+
     rows.sort(function(a,b){ return (a.ship.getTime()-b.ship.getTime()) || ((a.is13?1:0)-(b.is13?1:0)); });
 
     // 出荷日ごとにグループ化
@@ -170,6 +176,8 @@ function generateArmPDF_core_(src){
     while(ex.hasNext()) ex.next().setTrashed(true);   // 同名の古い版はゴミ箱へ
     var saved=outFolder.createFile(blob);
     Logger.log('保存完了: '+pdfName+' / 件数='+rows.length+' / ページ='+pages.length+' / '+saved.getUrl());
+
+    saveSnapshot_(rows); // 次回比較用に今回の内容を保存
     return true;
 
   } finally {
@@ -200,7 +208,8 @@ function buildHtml_(pages, rng){
   + '.c-insp{width:15mm}.c-kiki{width:21mm}.c-kishu{width:17mm}.c-zu{width:27mm}'
   + '.c-go{width:9mm;text-align:center}.c-spec{width:44mm}'
   + '.c-ship{width:18mm;text-align:center}.c-info{width:19mm}.c-dest{width:22mm}'
-  + '.d1{font-size:8pt;font-weight:bold}.dc{font-size:8pt;color:#666}';
+  + '.d1{font-size:8pt;font-weight:bold}.dc{font-size:8pt;color:#666}'
+  + 'tr.chg td, tr.chg td *{color:#d90000 !important;}';        // 前回から変更/新規の行は赤字
 
   var thead='<thead><tr>'
     +'<th class="c-insp">検査<br>完了日</th><th class="c-kiki">機器</th><th class="c-kishu">機種</th>'
@@ -219,10 +228,11 @@ function buildHtml_(pages, rng){
       var trs='';
       for(var k=0;k<grp.length;k++){
         var x=grp[k];
-        var rowcls=[]; if(x.is13) rowcls.push('r13'); if(k===0) rowcls.push('gtop');
+        var rowcls=[]; if(x.is13) rowcls.push('r13'); if(k===0) rowcls.push('gtop'); if(x.chg) rowcls.push('chg');
+        var shipTxt = x.prevShip ? (fmtJ_(x.prevShip)+'→'+fmtJ_(x.ship)) : fmtJ_(x.ship); // 出荷日が変わった行は旧→新を表示
         var dcell = (k===0)
-          ? '<div class="d1">'+fmtJ_(x.ship)+'</div>'
-          : '<div class="dc">'+fmtJ_(x.ship)+'</div>';
+          ? '<div class="d1">'+shipTxt+'</div>'
+          : '<div class="dc">'+shipTxt+'</div>';
         trs+='<tr class="'+rowcls.join(' ')+'">'
           +'<td class="c-insp">'+esc_(x.insp)+'</td>'
           +'<td class="c-kiki">'+esc_(x.kiki)+'</td>'
@@ -325,6 +335,59 @@ function esc_(t){
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function safeRemove_(id){ try{ Drive.Files.remove(id); }catch(e){ try{ DriveApp.getFileById(id).setTrashed(true);}catch(e2){} } }
+
+// ==== 前回との差分（変更行の赤字表示） ====
+
+/** 図番＋号機で同一出荷物とみなすためのキー。 */
+function snapshotKey_(zu, go){ return zu+'||'+go; }
+
+/**
+ * 前回生成時の内容と比較し、変更があった行・新規行に x.chg=true を立てる。
+ * 出荷日そのものが変わった場合は x.prevShip に旧日付(Date)を入れる（表示用）。
+ */
+function markChanges_(rows, prevMap){
+  for(var i=0;i<rows.length;i++){
+    var x = rows[i];
+    var prev = prevMap[snapshotKey_(x.zu, x.go)];
+    if(!prev){ x.chg=true; x.prevShip=null; continue; }
+    var shipMs = x.ship.getTime();
+    x.prevShip = (prev.ship!==shipMs) ? new Date(prev.ship) : null;
+    x.chg = (prev.insp!==x.insp || prev.kiki!==x.kiki || prev.kishu!==x.kishu ||
+             prev.spec!==x.spec || prev.ship!==shipMs ||
+             prev.info!==x.info || prev.dest!==x.dest || prev.is13!==x.is13);
+  }
+}
+
+/** 今回生成分をスナップショットとして保存し、次回の比較に使う。 */
+function saveSnapshot_(rows){
+  try{
+    var map={};
+    for(var i=0;i<rows.length;i++){
+      var x=rows[i];
+      map[snapshotKey_(x.zu,x.go)] = { insp:x.insp, kiki:x.kiki, kishu:x.kishu,
+        spec:x.spec, ship:x.ship.getTime(), info:x.info, dest:x.dest, is13:x.is13 };
+    }
+    var folder = DriveApp.getFolderById(OUT_FOLDER_ID);
+    var ex = folder.getFilesByName(SNAPSHOT_FILE_NAME);
+    while(ex.hasNext()) ex.next().setTrashed(true);
+    folder.createFile(SNAPSHOT_FILE_NAME, JSON.stringify(map), MimeType.PLAIN_TEXT);
+  }catch(e){
+    Logger.log('スナップショットの保存に失敗: '+e.message);
+  }
+}
+
+/** 前回生成時のスナップショットを読み込む。無ければ空（＝全行が新規扱い）。 */
+function loadSnapshot_(){
+  try{
+    var folder = DriveApp.getFolderById(OUT_FOLDER_ID);
+    var it = folder.getFilesByName(SNAPSHOT_FILE_NAME);
+    if(!it.hasNext()) return {};
+    return JSON.parse(it.next().getBlob().getDataAsString('UTF-8')) || {};
+  }catch(e){
+    Logger.log('スナップショットの読込に失敗: '+e.message);
+    return {};
+  }
+}
 
 /**
  * クラッシュ(GASのINTERNALエンジンエラー等)でfinallyが実行されず
