@@ -344,10 +344,14 @@ function snapshotKey_(zu, go){ return zu+'||'+go; }
 /**
  * 前回生成時の内容と比較し、変更があった行・新規行に x.chg=true を立てる。
  * 出荷日そのものが変わった場合は x.prevShip に旧日付(Date)を入れる（表示用）。
+ * prevMapがnull（＝比較対象となる前回スナップショットがまだ存在しない）の場合は、
+ * 比較のしようがないので今回分は基準点として扱い、どの行も赤字にしない。
  */
 function markChanges_(rows, prevMap){
+  var noBaseline = (prevMap===null);
   for(var i=0;i<rows.length;i++){
     var x = rows[i];
+    if(noBaseline){ x.chg=false; x.prevShip=null; continue; }
     var prev = prevMap[snapshotKey_(x.zu, x.go)];
     if(!prev){ x.chg=true; x.prevShip=null; continue; }
     var shipMs = x.ship.getTime();
@@ -376,16 +380,20 @@ function saveSnapshot_(rows){
   }
 }
 
-/** 前回生成時のスナップショットを読み込む。無ければ空（＝全行が新規扱い）。 */
+/**
+ * 前回生成時のスナップショットを読み込む。
+ * ファイルが無い（初回実行など）・読込に失敗した場合はnullを返す
+ * ＝比較対象が無いので今回は赤字を出さず基準点にする、とmarkChanges_側で扱う。
+ */
 function loadSnapshot_(){
   try{
     var folder = DriveApp.getFolderById(OUT_FOLDER_ID);
     var it = folder.getFilesByName(SNAPSHOT_FILE_NAME);
-    if(!it.hasNext()) return {};
-    return JSON.parse(it.next().getBlob().getDataAsString('UTF-8')) || {};
+    if(!it.hasNext()) return null;
+    return JSON.parse(it.next().getBlob().getDataAsString('UTF-8'));
   }catch(e){
     Logger.log('スナップショットの読込に失敗: '+e.message);
-    return {};
+    return null;
   }
 }
 
