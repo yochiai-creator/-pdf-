@@ -209,6 +209,7 @@ function buildHtml_(pages, rng){
   + '.c-go{width:9mm;text-align:center}.c-spec{width:44mm}'
   + '.c-ship{width:18mm;text-align:center}.c-info{width:19mm}.c-dest{width:22mm}'
   + '.d1{font-size:8pt;font-weight:bold}.dc{font-size:8pt;color:#666}'
+  + '.dprev{font-size:6.5pt;white-space:nowrap;}'                // 出荷日変更時の「旧日付」注記（改行位置が乱れないよう別行・小さめに）
   + 'tr.chg td, tr.chg td *{color:#d90000 !important;}';        // 前回から変更/新規の行は赤字
 
   var thead='<thead><tr>'
@@ -229,10 +230,11 @@ function buildHtml_(pages, rng){
       for(var k=0;k<grp.length;k++){
         var x=grp[k];
         var rowcls=[]; if(x.is13) rowcls.push('r13'); if(k===0) rowcls.push('gtop'); if(x.chg) rowcls.push('chg');
-        var shipTxt = x.prevShip ? (fmtJ_(x.prevShip)+'→'+fmtJ_(x.ship)) : fmtJ_(x.ship); // 出荷日が変わった行は旧→新を表示
+        // 出荷日が変わった行は「旧日付」を小さめの別行で注記する（1行に→でつなぐと折返し位置が乱れて読みにくいため）
+        var prevLine = x.prevShip ? '<div class="dprev">(旧'+fmtJ_(x.prevShip)+')</div>' : '';
         var dcell = (k===0)
-          ? '<div class="d1">'+shipTxt+'</div>'
-          : '<div class="dc">'+shipTxt+'</div>';
+          ? '<div class="d1">'+fmtJ_(x.ship)+'</div>'+prevLine
+          : '<div class="dc">'+fmtJ_(x.ship)+'</div>'+prevLine;
         trs+='<tr class="'+rowcls.join(' ')+'">'
           +'<td class="c-insp">'+esc_(x.insp)+'</td>'
           +'<td class="c-kiki">'+esc_(x.kiki)+'</td>'
