@@ -348,6 +348,10 @@ function snapshotKey_(zu, go){ return zu+'||'+go; }
  * 出荷日そのものが変わった場合は x.prevShip に旧日付(Date)を入れる（表示用）。
  * prevMapがnull（＝比較対象となる前回スナップショットがまだ存在しない）の場合は、
  * 比較のしようがないので今回分は基準点として扱い、どの行も赤字にしない。
+ *
+ * 検査完了日(insp)は比較対象に含めない。検査が進むたびに空欄→日付へと
+ * ほぼ毎日大量の行で自然に埋まっていく項目なので、これを含めると「本当に
+ * 注意すべき変更」が埋もれてページの大半が赤字になってしまうため。
  */
 function markChanges_(rows, prevMap){
   var noBaseline = (prevMap===null);
@@ -358,7 +362,7 @@ function markChanges_(rows, prevMap){
     if(!prev){ x.chg=true; x.prevShip=null; continue; }
     var shipMs = x.ship.getTime();
     x.prevShip = (prev.ship!==shipMs) ? new Date(prev.ship) : null;
-    x.chg = (prev.insp!==x.insp || prev.kiki!==x.kiki || prev.kishu!==x.kishu ||
+    x.chg = (prev.kiki!==x.kiki || prev.kishu!==x.kishu ||
              prev.spec!==x.spec || prev.ship!==shipMs ||
              prev.info!==x.info || prev.dest!==x.dest || prev.is13!==x.is13);
   }
