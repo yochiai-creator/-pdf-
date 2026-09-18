@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# 指図書 書き込み — GAS プロジェクトのセットアップ（手順 1〜4 を一括実行）
+#
+#   bash 10_shijisho-pen/setup.sh
+#
+# 前提: node / clasp 導入済み・clasp login 済み（Google 認証が要るため手動）
+# Downloads が別の場所なら:
+#   DOWNLOADS_DIR=/path/to/dir bash 10_shijisho-pen/setup.sh
+set -euo pipefail
+
+TITLE="指図書 書き込み"
+DL="${DOWNLOADS_DIR:-$HOME/Downloads}"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SRC="$HERE/src"
+
+step() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
+warn() { printf '\033[33m[warn]\033[0m %s\n' "$1"; }
+die()  { printf '\033[31m[error]\033[0m %s\n' "$1" >&2; exit 1; }
+
+# ---- 事前チェック -------------------------------------------------
+command -v node  >/dev/null 2>&1 || die "node が見つかりません。"
+command -v clasp >/dev/null 2>&1 || die "clasp が見つかりません。 npm i -g @google/clasp"
+CLASP_MAJOR="$(clasp --version 2>/dev/null | grep -oE '^[0-9]+' || echo 0)"
+if [ -f "$HOME/.clasprc.json" ] || clasp show-authorized-user >/dev/null 2>&1; then :
+else die "clasp が未ログインです。 clasp login を先に実行してください。"; fi
+[ -d "$DL" ] || die "$DL がありません。DOWNLOADS_DIR=... で場所を指定してください。"
+
+# ---- 1. clasp create ----------------------------------------------
+step "1. clasp create --type webapp --title \"$TITLE\" --rootDir ./src"
+mkdir -p "$SRC"
+if [ -f "$HERE/.clasp.json" ]; then
+  warn ".clasp.json が既にあります。作成済みとみなしてスキップします。"
+  cat "$HERE/.clasp.json"
+else
+  ( cd "$HERE" && clasp create --type webapp --title "$TITLE" --rootDir ./src )
+fi
+
+# ---- 2. Downloads から src/ へコピー --------------------------------
+step "2. $DL から src/ へコピー (Code.gs -> Code.js)"
+copy_one() { # $1=元ファイル名 $2=コピー先ファイル名
+  if [ -f "$DL/$1" ]; then
+    cp "$DL/$1" "$SRC/$2"
+    printf '  %s -> src/%s (%s 行)\n' "$1" "$2" "$(wc -l <"$SRC/$2" | tr -d ' ')"
+  else
+    warn "$DL/$1 が見つかりません（スキップ）"
+  fi
+}
+copy_one "Code.gs"         "Code.js"
+copy_one "Index.html"      "Index.html"
+copy_one "appsscript.json" "appsscript.json"
+
+for f in Code.js Index.html; do
+  [ -f "$SRC/$f" ] || die "src/$f がありません。$DL に元ファイルを置いてから再実行してください。"
+done
+
+# ---- 3. appsscript.json の確認 / 補正 -------------------------------
+step "3. appsscript.json の確認 (webapp.access=DOMAIN / Drive v3)"
+node - "$SRC/appsscript.json" <<'NODE'
+const fs = require('fs');
+const p = process.argv[2];
+const m = JSON.parse(fs.readFileSync(p, 'utf8'));
+let fixed = false;
+
+// 既存 00_ai-clerk-core / apps-script と揃える基本設定
+if (m.timeZone !== 'Asia/Tokyo')         { m.timeZone = 'Asia/Tokyo'; fixed = true; }
+if (m.runtimeVersion !== 'V8')           { m.runtimeVersion = 'V8'; fixed = true; }
+if (m.exceptionLogging !== 'STACKDRIVER') { m.exceptionLogging = 'STACKDRIVER'; fixed = true; }
+
+// webapp.access = DOMAIN
+m.webapp = m.webapp || {};
+if (m.webapp.access !== 'DOMAIN') {
+  console.log(`  webapp.access: ${m.webapp.access ?? '(未設定)'} -> DOMAIN に補正`);
+  m.webapp.access = 'DOMAIN'; fixed = true;
+} else {
+  console.log('  webapp.access = DOMAIN   OK');
+}
+if (!m.webapp.executeAs) { m.webapp.executeAs = 'USER_DEPLOYING'; fixed = true; }
+console.log(`  webapp.executeAs = ${m.webapp.executeAs}`);
+
+// dependencies に Drive v3
+const deps = (m.dependencies = m.dependencies || {});
+const svcs = (deps.enabledAdvancedServices = deps.enabledAdvancedServices || []);
+const drive = svcs.find(s => s.serviceId === 'drive');
+if (!drive) {
+  console.log('  Drive 拡張サービス: 未設定 -> v3 を追加');
+  svcs.push({ userSymbol: 'Drive', version: 'v3', serviceId: 'drive' });
+  fixed = true;
+} else if (drive.version !== 'v3') {
+  console.log(`  Drive ${drive.version} -> v3 に補正`);
+  drive.version = 'v3'; drive.userSymbol = drive.userSymbol || 'Drive'; fixed = true;
+} else {
+  console.log('  dependencies に Drive v3   OK');
+}
+
+if (fixed) {
+  fs.writeFileSync(p, JSON.stringify(m, null, 2) + '\n');
+  console.log('  -> appsscript.json を補正しました');
+} else {
+  console.log('  -> 補正不要');
+}
+NODE
+echo "  --- src/appsscript.json ---"
+sed 's/^/  /' "$SRC/appsscript.json"
+
+# ---- 4. push して エディタを開く -------------------------------------
+step "4. clasp push"
+( cd "$HERE" && clasp push --force )
+
+step "エディタを開く"
+# clasp v3 で `clasp open` は廃止され `open-script` に変わった
+if [ "$CLASP_MAJOR" -ge 3 ]; then
+  ( cd "$HERE" && clasp open-script )
+else
+  ( cd "$HERE" && clasp open )
+fi
+
+printf '\n\033[32m完了\033[0m: %s\n' "$SRC"
