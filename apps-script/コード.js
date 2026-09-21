@@ -333,11 +333,11 @@ function dateKeyFromName_(name){
   if(!m) return -1;
   return (2000+parseInt(m[1],10))*10000+parseInt(m[2],10)*100+parseInt(m[3],10);
 }
-/** 日程表変更ファイル名の「(25年9月16日)」部分から「9月16日」を取り出す。無ければnull。 */
+/** 日程表変更ファイル名の「(25年9月16日)」部分から「9/16」を取り出す。無ければnull。 */
 function srcDateTag_(name){
   var m=name.match(/\((\d{2})年(\d{1,2})月(\d{1,2})日\)/);
   if(!m) return null;
-  return parseInt(m[2],10)+'月'+parseInt(m[3],10)+'日';
+  return parseInt(m[2],10)+'/'+parseInt(m[3],10);
 }
 function midnight_(d){ return new Date(d.getFullYear(),d.getMonth(),d.getDate()); }
 function fmtJ_(d){ return (d.getMonth()+1)+'月'+d.getDate()+'日'; }
