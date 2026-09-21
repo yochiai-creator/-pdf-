@@ -57,6 +57,10 @@ var LAST_NOTIFY_KEY   = 'ARM_LAST_NOTIFY_DATE';
 
 var SNAPSHOT_FILE_NAME = 'arm_pdf_snapshot.json'; // 前回生成時点の内容（変更点の赤字判定用）
 
+// 同一出荷日内の出荷先の並び順。無い出荷先はスキップされるだけなので問題ない。
+// リストに無い出荷先は末尾に回す。
+var DEST_ORDER = ['あゆみ', '本間', '東条', '正和', '正和(13ton)'];
+
 
 /** 手動実行用エントリポイント。見つかったファイルで無条件に生成する。 */
 function generateArmPDF(){
@@ -145,7 +149,7 @@ function generateArmPDF_core_(src){
     // 前回生成時からの変更行を検出（赤字表示用）。図番＋号機で同一出荷物とみなす。
     markChanges_(rows, loadSnapshot_());
 
-    rows.sort(function(a,b){ return (a.ship.getTime()-b.ship.getTime()) || ((a.is13?1:0)-(b.is13?1:0)); });
+    rows.sort(function(a,b){ return (a.ship.getTime()-b.ship.getTime()) || (destRank_(a.dest)-destRank_(b.dest)); });
 
     // 出荷日ごとにグループ化
     var groups=[], gi=0;
@@ -318,6 +322,11 @@ function notifySourceNotFound_(){
 
 
 // ==== ヘルパ ====
+/** DEST_ORDERでの並び順。無い出荷先は末尾に回す。 */
+function destRank_(dest){
+  var i = DEST_ORDER.indexOf(dest);
+  return (i>=0) ? i : DEST_ORDER.length;
+}
 function dateKeyFromName_(name){
   var m=name.match(/\((\d{2})年(\d{1,2})月(\d{1,2})日\)/);
   if(!m) return -1;
