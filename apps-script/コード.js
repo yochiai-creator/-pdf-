@@ -147,7 +147,8 @@ function generateArmPDF_core_(src){
     if(rows.length===0){ Logger.log('該当データ0件のためPDFは作成しません'); return false; }
 
     // 前回生成時からの変更行を検出（赤字表示用）。図番＋号機で同一出荷物とみなす。
-    markChanges_(rows, loadSnapshot_());
+    var prevSnapshot = loadSnapshot_();
+    markChanges_(rows, prevSnapshot);
 
     rows.sort(function(a,b){ return (a.ship.getTime()-b.ship.getTime()) || (destRank_(a.dest)-destRank_(b.dest)); });
 
@@ -182,7 +183,7 @@ function generateArmPDF_core_(src){
     var saved=outFolder.createFile(blob);
     Logger.log('保存完了: '+pdfName+' / 件数='+rows.length+' / ページ='+pages.length+' / '+saved.getUrl());
 
-    saveSnapshot_(rows); // 次回比較用に今回の内容を保存
+    saveSnapshot_(rows, prevSnapshot); // 次回比較用に今回の内容を保存
     return true;
 
   } finally {
@@ -360,8 +361,10 @@ function safeRemove_(id){ try{ Drive.Files.remove(id); }catch(e){ try{ DriveApp.
 function snapshotKey_(zu, go){ return zu+'||'+go; }
 
 /**
- * 前回生成時の内容と比較し、変更があった行・新規行に x.chg=true を立てる。
- * 出荷日そのものが変わった場合は x.prevShip に旧日付(Date)を入れる（表示用）。
+ * 前回生成時の内容と比較し、変更があった行・新規行に x.chg=true を立てる（赤字用、1回だけ光る）。
+ * 出荷日については別に、最初に見つけた時点の日付(origShip)とも比較し、ズレていれば
+ * x.prevShip に元の日付(Date)を入れる（表示用）。こちらはorigShipに一致するまでは
+ * 赤字かどうかに関わらずずっと表示され続ける（黒字の行にも旧日付の注記が出る）。
  * prevMapがnull（＝比較対象となる前回スナップショットがまだ存在しない）の場合は、
  * 比較のしようがないので今回分は基準点として扱い、どの行も赤字にしない。
  *
@@ -377,20 +380,27 @@ function markChanges_(rows, prevMap){
     var prev = prevMap[snapshotKey_(x.zu, x.go)];
     if(!prev){ x.chg=true; x.prevShip=null; continue; }
     var shipMs = x.ship.getTime();
-    x.prevShip = (prev.ship!==shipMs) ? new Date(prev.ship) : null;
     x.chg = (prev.kiki!==x.kiki || prev.kishu!==x.kishu ||
              prev.spec!==x.spec || prev.ship!==shipMs ||
              prev.info!==x.info || prev.dest!==x.dest || prev.is13!==x.is13);
+    x.prevShip = (prev.origShip!==shipMs) ? new Date(prev.origShip) : null;
   }
 }
 
-/** 今回生成分をスナップショットとして保存し、次回の比較に使う。 */
-function saveSnapshot_(rows){
+/**
+ * 今回生成分をスナップショットとして保存し、次回の比較に使う。
+ * origShip（最初に見つけた時点の出荷日）は前回のスナップショットにあればそのまま
+ * 引き継ぎ、今回上書きしない。新規の出荷物だけ今回の出荷日を基準にする。
+ */
+function saveSnapshot_(rows, prevMap){
   try{
     var map={};
     for(var i=0;i<rows.length;i++){
       var x=rows[i];
-      map[snapshotKey_(x.zu,x.go)] = { insp:x.insp, kiki:x.kiki, kishu:x.kishu,
+      var key = snapshotKey_(x.zu,x.go);
+      var prev = prevMap && prevMap[key];
+      var origShip = (prev && prev.origShip!=null) ? prev.origShip : x.ship.getTime();
+      map[key] = { origShip:origShip, kiki:x.kiki, kishu:x.kishu,
         spec:x.spec, ship:x.ship.getTime(), info:x.info, dest:x.dest, is13:x.is13 };
     }
     var folder = DriveApp.getFolderById(OUT_FOLDER_ID);
