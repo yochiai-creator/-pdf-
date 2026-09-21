@@ -172,7 +172,8 @@ function generateArmPDF_core_(src){
     var rng = fmtJ_(start)+' 〜 '+fmtJ_(new Date(end.getTime()-86400000));
     var html = buildHtml_(pages, rng);
 
-    var pdfName='アーム機種別出荷明細_'+Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd')+'.pdf';
+    var srcTag = srcDateTag_(src.getName()); // 日程表変更ファイル名に埋め込まれた日付（例:9月16日）
+    var pdfName='アーム機種別出荷明細_'+(srcTag?'日程表'+srcTag+'_':'')+Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd')+'.pdf';
     var blob=Utilities.newBlob(html,'text/html','arm.html').getAs('application/pdf').setName(pdfName);
 
     var outFolder=DriveApp.getFolderById(OUT_FOLDER_ID);
@@ -331,6 +332,12 @@ function dateKeyFromName_(name){
   var m=name.match(/\((\d{2})年(\d{1,2})月(\d{1,2})日\)/);
   if(!m) return -1;
   return (2000+parseInt(m[1],10))*10000+parseInt(m[2],10)*100+parseInt(m[3],10);
+}
+/** 日程表変更ファイル名の「(25年9月16日)」部分から「9月16日」を取り出す。無ければnull。 */
+function srcDateTag_(name){
+  var m=name.match(/\((\d{2})年(\d{1,2})月(\d{1,2})日\)/);
+  if(!m) return null;
+  return parseInt(m[2],10)+'月'+parseInt(m[3],10)+'日';
 }
 function midnight_(d){ return new Date(d.getFullYear(),d.getMonth(),d.getDate()); }
 function fmtJ_(d){ return (d.getMonth()+1)+'月'+d.getDate()+'日'; }
