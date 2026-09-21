@@ -173,7 +173,7 @@ function generateArmPDF_core_(src){
     var html = buildHtml_(pages, rng);
 
     var srcTag = srcDateTag_(src.getName()); // 日程表変更ファイル名に埋め込まれた日付（例:9月16日）
-    var pdfName='アーム機種別出荷明細_'+(srcTag?'日程表'+srcTag+'_':'')+Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd')+'.pdf';
+    var pdfName='アーム出荷明細'+(srcTag?'('+srcTag+')':'')+'_'+Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd')+'.pdf';
     var blob=Utilities.newBlob(html,'text/html','arm.html').getAs('application/pdf').setName(pdfName);
 
     var outFolder=DriveApp.getFolderById(OUT_FOLDER_ID);
