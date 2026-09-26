@@ -161,10 +161,10 @@ function generateArmPDF_core_(src){
     }
 
     // ページへバケット（グループは分割しない。単独で超過する日だけ自然フロー）
-    // 各日の末尾に合計行が1行付くので、グループの行数は +1 で数える。
+    // 各日の末尾に合計行（通常の行より背が高い）が付くので、グループの行数は +2 で数える。
     var pages=[], cur=[], curcnt=0;
     for(var gk=0; gk<groups.length; gk++){
-      var g=groups[gk], gn=g.length+1;
+      var g=groups[gk], gn=g.length+2;
       if(gn>ROWS_PER_PAGE){ if(cur.length){pages.push(cur);cur=[];curcnt=0;} pages.push([g]); continue; }
       if(curcnt+gn>ROWS_PER_PAGE){ pages.push(cur); cur=[g]; curcnt=gn; }
       else { cur.push(g); curcnt+=gn; }
@@ -217,7 +217,8 @@ function buildHtml_(pages, rng){
   + '.c-ship{width:18mm;text-align:center}.c-info{width:19mm}.c-dest{width:22mm}'
   + '.d1{font-size:8pt;font-weight:bold}.dc{font-size:8pt;color:#666}'
   + '.dprev{font-size:6.5pt;white-space:nowrap;}'                // 出荷日変更時の「旧日付」注記（改行位置が乱れないよう別行・小さめに）
-  + 'tr.gsum td{background:#e6e6e6;font-size:8.5pt;font-weight:bold;text-align:right;padding:1.5px 6px;}' // 1日ごとの出荷合計行
+  + 'tr.gsum td{background:#333;color:#fff;font-size:10pt;font-weight:bold;text-align:right;padding:3px 8px;border:1pt solid #000;}' // 1日ごとの出荷合計行（濃い帯）
+  + '.gtot{color:#ffe14d;font-size:12pt;margin-left:12px;}'      // 合計本数だけさらに強調
   + 'tr.chg td, tr.chg td *{color:#d90000 !important;}';        // 前回から変更/新規の行は赤字
 
   var thead='<thead><tr>'
@@ -256,7 +257,9 @@ function buildHtml_(pages, rng){
           +'</tr>';
       }
       // 1日ごとの出荷本数の内訳と合計（1行=1本）。グループと同じ<tbody>に入れて一緒に改ページさせる。
-      trs+='<tr class="gsum"><td colspan="9">'+fmtJ_(grp[0].ship)+'　'+esc_(daySummary_(grp))+'</td></tr>';
+      var sum = daySummary_(grp);
+      trs+='<tr class="gsum"><td colspan="9">'+fmtJ_(grp[0].ship)+'　'+esc_(sum.items)
+          +'<span class="gtot">合計 '+sum.total+'本</span></td></tr>';
       // 出荷日グループごとに<tbody>を分け、そのグループだけpage-break-inside:avoidする。
       // ページ全体をavoid指定すると、行の折り返しで見積もり行数(ROWS_PER_PAGE)を実際の高さが
       // わずかに超えた場合に、印刷エンジンが同一出荷日の途中で強制的にページを割ってしまう
@@ -331,7 +334,7 @@ function notifySourceNotFound_(){
 /**
  * 1日分の出荷本数の内訳。13ton(黄色の行)は「13トン」、白い行は出荷先で
  * 正和→「ライン」、あゆみ・本間・東条はそれぞれ、それ以外は「その他」に数える。
- * 0本の項目は出さず、最後に合計を付ける。
+ * 0本の項目は出さない。{items: 内訳の文字列, total: 合計本数} を返す。
  */
 function daySummary_(grp){
   var c = { line:0, ayumi:0, honma:0, tojo:0, t13:0, other:0 };
@@ -347,8 +350,7 @@ function daySummary_(grp){
   var items = [['ライン',c.line],['あゆみ',c.ayumi],['本間',c.honma],['東条',c.tojo],['13トン',c.t13],['その他',c.other]];
   var parts = [];
   for(var k=0;k<items.length;k++){ if(items[k][1]>0) parts.push(items[k][0]+' '+items[k][1]+'本'); }
-  parts.push('合計 '+grp.length+'本');
-  return parts.join('　');
+  return { items: parts.join('　'), total: grp.length };
 }
 /** DEST_ORDERでの並び順。無い出荷先は末尾に回す。 */
 function destRank_(dest){
