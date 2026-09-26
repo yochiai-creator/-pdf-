@@ -255,8 +255,8 @@ function buildHtml_(pages, rng){
           +'<td class="c-dest">'+esc_(x.dest)+'</td>'
           +'</tr>';
       }
-      // 1日ごとの出荷合計本数（1行=1本）。グループと同じ<tbody>に入れて一緒に改ページさせる。
-      trs+='<tr class="gsum"><td colspan="9">'+fmtJ_(grp[0].ship)+'　出荷合計 '+grp.length+'本</td></tr>';
+      // 1日ごとの出荷本数の内訳と合計（1行=1本）。グループと同じ<tbody>に入れて一緒に改ページさせる。
+      trs+='<tr class="gsum"><td colspan="9">'+fmtJ_(grp[0].ship)+'　'+esc_(daySummary_(grp))+'</td></tr>';
       // 出荷日グループごとに<tbody>を分け、そのグループだけpage-break-inside:avoidする。
       // ページ全体をavoid指定すると、行の折り返しで見積もり行数(ROWS_PER_PAGE)を実際の高さが
       // わずかに超えた場合に、印刷エンジンが同一出荷日の途中で強制的にページを割ってしまう
@@ -328,6 +328,28 @@ function notifySourceNotFound_(){
 
 
 // ==== ヘルパ ====
+/**
+ * 1日分の出荷本数の内訳。13ton(黄色の行)は「13トン」、白い行は出荷先で
+ * 正和→「ライン」、あゆみ・本間・東条はそれぞれ、それ以外は「その他」に数える。
+ * 0本の項目は出さず、最後に合計を付ける。
+ */
+function daySummary_(grp){
+  var c = { line:0, ayumi:0, honma:0, tojo:0, t13:0, other:0 };
+  for(var i=0;i<grp.length;i++){
+    var x = grp[i], d = String(x.dest).trim();
+    if(x.is13) c.t13++;
+    else if(d==='正和') c.line++;
+    else if(d==='あゆみ') c.ayumi++;
+    else if(d==='本間') c.honma++;
+    else if(d==='東条') c.tojo++;
+    else c.other++;
+  }
+  var items = [['ライン',c.line],['あゆみ',c.ayumi],['本間',c.honma],['東条',c.tojo],['13トン',c.t13],['その他',c.other]];
+  var parts = [];
+  for(var k=0;k<items.length;k++){ if(items[k][1]>0) parts.push(items[k][0]+' '+items[k][1]+'本'); }
+  parts.push('合計 '+grp.length+'本');
+  return parts.join('　');
+}
 /** DEST_ORDERでの並び順。無い出荷先は末尾に回す。 */
 function destRank_(dest){
   var i = DEST_ORDER.indexOf(dest);
