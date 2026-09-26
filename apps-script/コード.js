@@ -347,7 +347,7 @@ function daySummary_(grp){
     else if(d==='東条') c.tojo++;
     else c.other++;
   }
-  var items = [['ライン',c.line],['あゆみ',c.ayumi],['本間',c.honma],['東条',c.tojo],['13トン',c.t13],['その他',c.other]];
+  var items = [['あゆみ',c.ayumi],['本間',c.honma],['東条',c.tojo],['その他',c.other],['ライン',c.line],['13トン',c.t13]];
   var parts = [];
   for(var k=0;k<items.length;k++){ if(items[k][1]>0) parts.push(items[k][0]+' '+items[k][1]+'本'); }
   return { items: parts.join('　'), total: grp.length };
