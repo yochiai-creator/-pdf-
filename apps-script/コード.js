@@ -161,12 +161,13 @@ function generateArmPDF_core_(src){
     }
 
     // ページへバケット（グループは分割しない。単独で超過する日だけ自然フロー）
+    // 各日の末尾に合計行が1行付くので、グループの行数は +1 で数える。
     var pages=[], cur=[], curcnt=0;
     for(var gk=0; gk<groups.length; gk++){
-      var g=groups[gk];
-      if(g.length>ROWS_PER_PAGE){ if(cur.length){pages.push(cur);cur=[];curcnt=0;} pages.push([g]); continue; }
-      if(curcnt+g.length>ROWS_PER_PAGE){ pages.push(cur); cur=[g]; curcnt=g.length; }
-      else { cur.push(g); curcnt+=g.length; }
+      var g=groups[gk], gn=g.length+1;
+      if(gn>ROWS_PER_PAGE){ if(cur.length){pages.push(cur);cur=[];curcnt=0;} pages.push([g]); continue; }
+      if(curcnt+gn>ROWS_PER_PAGE){ pages.push(cur); cur=[g]; curcnt=gn; }
+      else { cur.push(g); curcnt+=gn; }
     }
     if(cur.length) pages.push(cur);
 
@@ -216,6 +217,7 @@ function buildHtml_(pages, rng){
   + '.c-ship{width:18mm;text-align:center}.c-info{width:19mm}.c-dest{width:22mm}'
   + '.d1{font-size:8pt;font-weight:bold}.dc{font-size:8pt;color:#666}'
   + '.dprev{font-size:6.5pt;white-space:nowrap;}'                // 出荷日変更時の「旧日付」注記（改行位置が乱れないよう別行・小さめに）
+  + 'tr.gsum td{background:#e6e6e6;font-size:8.5pt;font-weight:bold;text-align:right;padding:1.5px 6px;}' // 1日ごとの出荷合計行
   + 'tr.chg td, tr.chg td *{color:#d90000 !important;}';        // 前回から変更/新規の行は赤字
 
   var thead='<thead><tr>'
@@ -253,6 +255,8 @@ function buildHtml_(pages, rng){
           +'<td class="c-dest">'+esc_(x.dest)+'</td>'
           +'</tr>';
       }
+      // 1日ごとの出荷合計本数（1行=1本）。グループと同じ<tbody>に入れて一緒に改ページさせる。
+      trs+='<tr class="gsum"><td colspan="9">'+fmtJ_(grp[0].ship)+'　出荷合計 '+grp.length+'本</td></tr>';
       // 出荷日グループごとに<tbody>を分け、そのグループだけpage-break-inside:avoidする。
       // ページ全体をavoid指定すると、行の折り返しで見積もり行数(ROWS_PER_PAGE)を実際の高さが
       // わずかに超えた場合に、印刷エンジンが同一出荷日の途中で強制的にページを割ってしまう
