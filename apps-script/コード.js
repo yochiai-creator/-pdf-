@@ -332,19 +332,20 @@ function notifySourceNotFound_(){
 
 // ==== ヘルパ ====
 /**
- * 1日分の出荷本数の内訳。13ton(黄色の行)は「13トン」、白い行は出荷先で
- * 正和→「ライン」、あゆみ・本間・東条はそれぞれ、それ以外は「その他」に数える。
+ * 1日分の出荷本数の内訳。出荷先があゆみ・本間・東条ならその出荷先で数える
+ * （13tonの行でも出荷先を優先。例:13tonを東条へ出す場合は「東条」）。
+ * それ以外は、13ton(黄色の行)→「13トン」、白い行で正和→「ライン」、残りは「その他」。
  * 0本の項目は出さない。{items: 内訳の文字列, total: 合計本数} を返す。
  */
 function daySummary_(grp){
   var c = { line:0, ayumi:0, honma:0, tojo:0, t13:0, other:0 };
   for(var i=0;i<grp.length;i++){
     var x = grp[i], d = String(x.dest).trim();
-    if(x.is13) c.t13++;
-    else if(d==='正和') c.line++;
-    else if(d==='あゆみ') c.ayumi++;
+    if(d==='あゆみ') c.ayumi++;
     else if(d==='本間') c.honma++;
     else if(d==='東条') c.tojo++;
+    else if(x.is13) c.t13++;
+    else if(d==='正和') c.line++;
     else c.other++;
   }
   var items = [['あゆみ',c.ayumi],['本間',c.honma],['東条',c.tojo],['その他',c.other],['ライン',c.line],['13トン',c.t13]];
